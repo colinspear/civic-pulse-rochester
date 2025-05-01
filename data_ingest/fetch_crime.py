@@ -45,12 +45,16 @@ def main():
 
     ymd = datetime.datetime.utcnow().strftime("%Y/%m/%d")
     key = f"raw/crime/{ymd}/part-0.parquet"
-    boto3.client("s3", region_name=os.getenv("AWS_REGION"))\
-        .put_object(Bucket=os.getenv("BUCKET"), Key=key,
-                    Body=pa.BufferOutputStream()
-                          .write_table(table, compression="zstd")
-                          .getvalue())
-    print(f"Wrote {len(df):,} rows to s3://{os.getenv('BUCKET')}/{key}")
+
+    buf = pa.BufferOutputStream()
+    pq.write_table(table, buf, compression="zstd")
+
+    s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
+    s3.put_object(
+        Bucket=os.getenv("BUCKET"),
+        Key=key,
+        Body=buf.getvalue()
+    )
 
 if __name__ == "__main__":
     main()
