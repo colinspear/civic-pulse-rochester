@@ -1,4 +1,10 @@
-import os, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3
+import os
+import datetime
+import requests
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import boto3
 
 URL = ("https://maps.cityofrochester.gov/arcgis/rest/services/"
        "RPD/RPD_Part_I_Crime/FeatureServer/3/query")
@@ -48,12 +54,13 @@ def main():
 
     buf = pa.BufferOutputStream()
     pq.write_table(table, buf, compression="zstd")
-
+    payload = buf.getvalue()
+    
     s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
     s3.put_object(
         Bucket=os.getenv("BUCKET"),
         Key=key,
-        Body=buf.getvalue()
+        Body=payload
     )
 
 if __name__ == "__main__":
