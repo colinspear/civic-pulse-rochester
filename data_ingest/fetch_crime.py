@@ -55,13 +55,11 @@ def main():
     buf = pa.BufferOutputStream()
     pq.write_table(table, buf, compression="zstd")
     payload = buf.getvalue()
-    
+
     s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
-    s3.put_object(
-        Bucket=os.getenv("BUCKET"),
-        Key=key,
-        Body=payload
-    )
+    s3.put_object(Bucket=os.getenv("BUCKET"), Key=key, Body=payload)
+
+    print(f"Wrote {len(table):,} rows → s3://{os.getenv('BUCKET')}/{key}")
 
 if __name__ == "__main__":
     main()
