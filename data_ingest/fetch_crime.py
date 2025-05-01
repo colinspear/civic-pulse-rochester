@@ -49,12 +49,12 @@ def main():
         pq.write_table(table, "crime_test.parquet", compression="zstd")
         print("Wrote local crime_test.parquet"); return
 
-    ymd = datetime.datetime.utcnow().strftime("%Y/%m/%d")
+    ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
     key = f"raw/crime/{ymd}/part-0.parquet"
 
     buf = pa.BufferOutputStream()
     pq.write_table(table, buf, compression="zstd")
-    payload = buf.getvalue().to_pybytes()
+    payload = buf.getvalue().to_pybytes
 
     s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
     s3.put_object(Bucket=os.getenv("BUCKET"), Key=key, Body=payload)
