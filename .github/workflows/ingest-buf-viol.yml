@@ -1,0 +1,24 @@
+name: ingest-buf-viol
+on:
+  schedule: [{cron: "17 4 * * *"}]
+  workflow_dispatch:
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION:            ${{ secrets.AWS_REGION }}
+      BUCKET:                ${{ secrets.BUCKET }}
+      SOCRATA_APP_TOKEN:     ${{ secrets.SOCRATA_APP_TOKEN }}  # optional
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install pandas pyarrow boto3 requests
+      - run: python data_ingest/fetch_buf_viol.py
+      - name: MSCK
+        run: |
+          aws athena start-query-execution \
+            --work-group civic_pulse \
+            --query-string "MSCK REPAIR TABLE civic_pulse.raw_buf_viol;"
