@@ -10,7 +10,7 @@ import os, sys, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet
 BASE = "https://data.buffalony.gov/resource/d6g9-xbgu.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 
-lookback = int(os.getenv("LOOKBACK_DAYS", "10"))
+lookback = int(os.getenv("LOOKBACK_DAYS", "1"))
 since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 
 params = {

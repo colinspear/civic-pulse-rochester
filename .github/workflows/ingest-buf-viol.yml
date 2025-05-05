@@ -20,5 +20,5 @@ jobs:
       - name: MSCK
         run: |
           aws athena start-query-execution \
-            --work-group civic_pulse \
+            --work-group primary \
             --query-string "MSCK REPAIR TABLE civic_pulse.raw_buf_viol;"
