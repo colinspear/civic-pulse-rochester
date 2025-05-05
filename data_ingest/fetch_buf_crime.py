@@ -5,12 +5,12 @@ Env: AWS_REGION  BUCKET
 Optional:  SOCRATA_APP_TOKEN  LOOKBACK_DAYS (default 1)
 """
 
-import os, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3
+import os, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3, sys
 
 BASE = "https://data.buffalony.gov/resource/d6g9-xbgu.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 
-lookback = int(os.getenv("LOOKBACK_DAYS", "1"))
+lookback = int(os.getenv("LOOKBACK_DAYS", "10"))
 since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 
 params = {
@@ -28,6 +28,12 @@ df["pulled_utc"] = pd.Timestamp.utcnow()
 
 ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
 key = f"raw/buf_crime/{ymd}/part-0.parquet"
+
+if os.getenv("BUCKET") == "LOCAL":
+    out = f'crime_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'
+    df.to_csv(out, index=False)          # quick sanity file
+    print(f"Wrote {len(df):,} rows → {out}")
+    sys.exit(0)
 
 buf = pa.BufferOutputStream()
 pq.write_table(pa.Table.from_pandas(df), buf, compression="zstd")

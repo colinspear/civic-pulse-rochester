@@ -6,7 +6,7 @@ Env: AWS_REGION  BUCKET     (optional) SOCRATA_APP_TOKEN  LOOKBACK_DAYS
 import os, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3
 BASE = "https://data.buffalony.gov/resource/ivrf-k9vm.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
-lookback = int(os.getenv("LOOKBACK_DAYS", "1"))
+lookback = int(os.getenv("LOOKBACK_DAYS", "10"))
 since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 
 params = {
