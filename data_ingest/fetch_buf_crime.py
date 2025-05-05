@@ -5,7 +5,7 @@ Env: AWS_REGION  BUCKET
 Optional:  SOCRATA_APP_TOKEN  LOOKBACK_DAYS (default 1)
 """
 
-import os, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3, sys
+import os, sys, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3
 
 BASE = "https://data.buffalony.gov/resource/d6g9-xbgu.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
