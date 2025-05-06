@@ -12,7 +12,7 @@ TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ["apno","aptype","issued","stname","value"]
 
 primary_dt_field = "issued"
-lookback_default = 7
+lookback_default = 30
 lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
 since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 

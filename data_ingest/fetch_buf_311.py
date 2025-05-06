@@ -13,7 +13,7 @@ FIELDS = ['createddate', 'casenumber', "department", "division", "type", "status
           "statusdescription", "closeddate", "latitude", "longitude"]
 
 primary_dt_field = "createddate"
-lookback_default = 1
+lookback_default = 30
 lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
 since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 
