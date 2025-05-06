@@ -7,14 +7,25 @@ import os, sys, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet
 
 BASE = "https://data.buffalony.gov/resource/ivrf-k9vm.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
-lookback = int(os.getenv("LOOKBACK_DAYS", "1"))
-since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
+FIELDS = ["case_number", "date", "status", "code", "code_section", "description", 
+          "address", "latitude", "longitude"]
+
+primary_dt_field = "date"
+lookback_default = 30
+lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
+
+since = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).date()
+since_iso = since.isoformat()
 
 params = {
+    "$select": ", ".join(FIELDS),
     "$limit": 50000,
-    "$where": ("date >= '" + since_iso +
-               "' AND upper(description) like 'VACANT%'")
+    "$where": (
+        f"{primary_dt_field} >= '{since_iso}' "
+        "AND upper(description) like 'VACANT%'"
+    )
 }
+
 hdrs = {"X-App-Token": TOKEN} if TOKEN else {}
 rows = requests.get(BASE, params=params, headers=hdrs, timeout=60).json()
 if not rows:
