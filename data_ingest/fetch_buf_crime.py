@@ -46,7 +46,8 @@ if not rows:
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
 df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], utc=True, errors="coerce")
-
+df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
 ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
 key = f"raw/buf_crime/{ymd}/part-0.parquet"
