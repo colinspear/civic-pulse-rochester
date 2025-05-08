@@ -1,0 +1,44 @@
+name: backfill-last-30-days
+on:
+  workflow_dispatch:        # run manually from Actions tab
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    env:                     # inject the same secrets the nightly jobs use
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION:            ${{ secrets.AWS_REGION }}
+      BUCKET:                ${{ secrets.BUCKET }}
+      SOCRATA_APP_TOKEN:     ${{ secrets.SOCRATA_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+
+      - run: pip install -r requirements.txt
+
+      - name: Run extractors for each of the last 30 days
+        shell: bash
+        run: |
+          for i in $(seq 0 29); do
+            TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
+            echo ">>> $TARGET_DATE"
+            export TARGET_DATE
+            python data_ingest/fetch_buf_crime.py
+            python data_ingest/fetch_buf_viol.py
+            python data_ingest/fetch_buf_permits.py
+            python data_ingest/fetch_buf_biz.py
+            python data_ingest/fetch_buf_311.py
+          done
+
+      - name: Repair partitions
+        run: |
+          aws athena start-query-execution \
+            --work-group "$YOUR_WORKGROUP" \
+            --query-string "MSCK REPAIR TABLE civic_pulse.raw_buf_crime;
+                            MSCK REPAIR TABLE civic_pulse.raw_buf_viol;
+                            MSCK REPAIR TABLE civic_pulse.raw_buf_permits;
+                            MSCK REPAIR TABLE civic_pulse.raw_buf_biz;
+                            MSCK REPAIR TABLE civic_pulse.raw_buf_311;"
