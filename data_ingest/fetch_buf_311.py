@@ -12,11 +12,22 @@ TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ['createddate', 'casenumber', "department", "division", "type", "status", 
           "statusdescription", "closeddate", "latitude", "longitude"]
 
-primary_dt_field = "createddate"
-lookback_default = 30
-lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
-since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
+target = os.getenv("TARGET_DATE")           # fmt YYYY-MM-DD, optional
 
+if target:
+    target_dt = pd.to_datetime(target).date()
+    since_iso = target_dt.isoformat()       # API filter for that one day
+    y,m,d = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
+    key = f"raw/buf_311/year={y}/month={m}/day={d}/part-0.parquet"
+else:
+    # default: yesterday look-back, run-date partition
+    lookback_default = 1
+    lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
+    since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
+    ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
+    key = f"raw/buf_311/{ymd}/part-0.parquet"
+
+primary_dt_field = "createddate"
 params = {
     "$select": ", ".join(FIELDS),
     "$limit": 50000,
@@ -32,9 +43,6 @@ df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
 df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], utc=True, errors="coerce")
 df["closeddate"] = pd.to_datetime(df["closeddate"], utc=True, errors="coerce")
-
-ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
-key = f"raw/buf_311/{ymd}/part-0.parquet"
 
 if os.getenv("BUCKET") == "LOCAL":
     out = f'311_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'
