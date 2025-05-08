@@ -30,6 +30,7 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
+df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], errors="coerce").dt.date
 
 ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
 key = f"raw/buf_permits/{ymd}/part-0.parquet"
@@ -40,8 +41,18 @@ if os.getenv("BUCKET") == "LOCAL":
     print(f"Wrote {len(df):,} rows → {out}")
     sys.exit(0)
 
-buf = pa.BufferOutputStream()
-pq.write_table(pa.Table.from_pandas(df), buf, compression="zstd")
+schema = pa.schema([
+    ("apno",        pa.string()),
+    ("aptype",      pa.string()),
+    ("issued",      pa.date32()),
+    ("stname",      pa.string()),
+    ("value",       pa.float64()),
+    ("pulled_utc",  pa.timestamp("us"))
+])
+
+table = pa.Table.from_pandas(df, schema=schema)
+buf   = pa.BufferOutputStream()
+pq.write_table(table, buf, compression="zstd")
 boto3.client("s3", region_name=os.getenv("AWS_REGION")).put_object(
         Bucket=os.getenv("BUCKET"), Key=key, Body=buf.getvalue().to_pybytes())
 print(f"Wrote {len(df):,} Permit rows → s3://{os.getenv('BUCKET')}/{key}")

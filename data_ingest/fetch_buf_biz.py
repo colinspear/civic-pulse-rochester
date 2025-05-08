@@ -31,6 +31,9 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
+df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], utc=True, errors="coerce")
+df["statusdttm"] = pd.to_datetime(df["statusdttm"], utc=True, errors="coerce")
+df["licensedttm"] = pd.to_datetime(df["licensedttm"], utc=True, errors="coerce")
 
 ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
 key = f"raw/buf_biz/{ymd}/part-0.parquet"
@@ -41,8 +44,22 @@ if os.getenv("BUCKET") == "LOCAL":
     print(f"Wrote {len(df):,} rows → {out}")
     sys.exit(0)
 
-buf = pa.BufferOutputStream()
-pq.write_table(pa.Table.from_pandas(df), buf, compression="zstd")
+schema = pa.schema([
+    ("uniqkey",     pa.string()),
+    ("code",        pa.string()),
+    ("descript",    pa.string()),
+    ("licstatus",   pa.string()),
+    ("statusdttm",  pa.timestamp("us")),
+    ("licensedttm", pa.timestamp("us")),
+    ("issdttm",     pa.timestamp("us")),
+    ("latitude",    pa.float64()),
+    ("longitude",   pa.float64()),
+    ("pulled_utc",  pa.timestamp("us"))
+])
+
+table = pa.Table.from_pandas(df, schema=schema)
+buf   = pa.BufferOutputStream()
+pq.write_table(table, buf, compression="zstd")
 boto3.client("s3", region_name=os.getenv("AWS_REGION")).put_object(
         Bucket=os.getenv("BUCKET"), Key=key, Body=buf.getvalue().to_pybytes())
 print(f"Wrote {len(df):,} Business License rows → s3://{os.getenv('BUCKET')}/{key}")
