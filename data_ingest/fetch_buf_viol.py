@@ -67,7 +67,7 @@ if os.getenv("BUCKET") == "LOCAL":
     sys.exit(0)
 
 schema = pa.schema([
-    ("casenumber",      pa.string()),
+    ("case_number",     pa.string()),
     ("date",            pa.date32()),
     ("status",          pa.string()),
     ("code",            pa.string()),
