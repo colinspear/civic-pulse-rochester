@@ -10,27 +10,22 @@ TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ["case_number", "date", "status", "code", "code_section", "description", 
           "address", "latitude", "longitude"]
 
-target = os.getenv("TARGET_DATE")           # fmt YYYY-MM-DD, optional
+lookback_default = 1
+target = os.getenv("TARGET_DATE")
 
 if target:
-    target_dt = pd.to_datetime(target).date()
-    since_iso = target_dt.isoformat()       # API filter for that one day
-    y,m,d = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
+    target_dt  = pd.to_datetime(target).date()
+    since_iso  = target_dt.isoformat()
+    y, m, d    = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
     key = f"raw/buf_viol/year={y}/month={m}/day={d}/part-0.parquet"
 else:
-    # default: yesterday look-back, run-date partition
-    lookback_default = 1
-    lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
-    since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
-    ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
+    lookback   = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
+    since_dt   = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).date()
+    since_iso  = since_dt.isoformat()
+    ymd        = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
     key = f"raw/buf_viol/{ymd}/part-0.parquet"
 
 primary_dt_field = "date"
-lookback_default = 1
-lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
-
-since = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).date()
-since_iso = since.isoformat()
 
 params = {
     "$select": ", ".join(FIELDS),

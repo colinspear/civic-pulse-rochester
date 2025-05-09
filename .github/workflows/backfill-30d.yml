@@ -29,16 +29,14 @@ jobs:
             python data_ingest/fetch_buf_crime.py
             python data_ingest/fetch_buf_viol.py
             python data_ingest/fetch_buf_permits.py
-            python data_ingest/fetch_buf_biz.py
-            python data_ingest/fetch_buf_311.py
+            # python data_ingest/fetch_buf_biz.py
+            # python data_ingest/fetch_buf_311.py
           done
 
       - name: Repair partitions
         run: |
-          aws athena start-query-execution \
-            --work-group "$YOUR_WORKGROUP" \
-            --query-string "MSCK REPAIR TABLE civic_pulse.raw_buf_crime;
-                            MSCK REPAIR TABLE civic_pulse.raw_buf_viol;
-                            MSCK REPAIR TABLE civic_pulse.raw_buf_permits;
-                            MSCK REPAIR TABLE civic_pulse.raw_buf_biz;
-                            MSCK REPAIR TABLE civic_pulse.raw_buf_311;"
+          for tbl in raw_buf_crime raw_buf_viol raw_buf_permits raw_buf_biz raw_buf_311; do
+            aws athena start-query-execution \
+              --work-group "$YOUR_WORKGROUP" \
+              --query-string "MSCK REPAIR TABLE civic_pulse.${tbl};"
+          done

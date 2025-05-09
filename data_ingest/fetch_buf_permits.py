@@ -11,25 +11,22 @@ BASE = "https://data.buffalony.gov/resource/9p2d-f3yt.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ["apno","aptype","issued","stname","value"]
 
-target = os.getenv("TARGET_DATE")           # fmt YYYY-MM-DD, optional
+lookback_default = 1
+target = os.getenv("TARGET_DATE")
 
 if target:
-    target_dt = pd.to_datetime(target).date()
-    since_iso = target_dt.isoformat()       # API filter for that one day
-    y,m,d = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
-    key = f"raw/buf_permits/year={y}/month={m}/day={d}/part-0.parquet"
+    target_dt  = pd.to_datetime(target).date()
+    since_iso  = target_dt.isoformat()
+    y, m, d    = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
+    key = f"raw/buf_crime/year={y}/month={m}/day={d}/part-0.parquet"
 else:
-    # default: yesterday look-back, run-date partition
-    lookback_default = 1
-    lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
-    since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
-    ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
-    key = f"raw/buf_permits/{ymd}/part-0.parquet"
+    lookback   = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
+    since_dt   = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).date()
+    since_iso  = since_dt.isoformat()
+    ymd        = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
+    key = f"raw/buf_crime/{ymd}/part-0.parquet"
 
 primary_dt_field = "issued"
-lookback_default = 1
-lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
-since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
 
 params = {
     "$select": ", ".join(FIELDS),
