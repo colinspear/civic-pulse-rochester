@@ -48,12 +48,19 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
-df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], errors="coerce").dt.date
-df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
-ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
-key = f"raw/buf_viol/{ymd}/part-0.parquet"
+for col in FIELDS:
+    if col not in df:
+        if col in ["date", "pulled_utc"]:
+            df[col] = pd.NaT            # date / timestamp
+        elif col in ["latitude", "longitude"]:
+            df[col] = pd.NA
+        else:
+            df[col] = pd.NA
+
+df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
+    pd.to_numeric, errors="coerce"
+)
 
 if os.getenv("BUCKET") == "LOCAL":
     out = f'violation_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'

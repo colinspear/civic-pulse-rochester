@@ -41,11 +41,19 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
-df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], utc=True, errors="coerce")
-df["closeddate"] = pd.to_datetime(df["closeddate"], utc=True, errors="coerce")
-df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
+for col in FIELDS:
+    if col not in df:
+        if col in ["createddate", "closeddate", "pulled_utc"]:
+            df[col] = pd.NaT                       # datetime column
+        elif col in ["latitude", "longitude"]:
+            df[col] = pd.NA                        # numeric
+        else:
+            df[col] = pd.NA                        # string
+
+df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
+    pd.to_numeric, errors="coerce"
+)
 
 if os.getenv("BUCKET") == "LOCAL":
     out = f'311_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'

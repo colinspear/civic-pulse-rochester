@@ -45,11 +45,17 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["pulled_utc"] = pd.Timestamp.utcnow()
-df[primary_dt_field] = pd.to_datetime(df[primary_dt_field], errors="coerce").dt.date
-df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
-key = f"raw/buf_permits/{ymd}/part-0.parquet"
+for col in FIELDS:
+    if col not in df:
+        if col in ["issued", "pulled_utc"]:
+            df[col] = pd.NaT
+        elif col == "value":
+            df[col] = pd.NA
+        else:
+            df[col] = pd.NA
+
+df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
 if os.getenv("BUCKET") == "LOCAL":
     out = f'permits_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'
