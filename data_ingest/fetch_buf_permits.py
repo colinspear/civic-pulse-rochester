@@ -55,6 +55,9 @@ for col in FIELDS:
         else:
             df[col] = pd.NA
 
+df["issued"]     = pd.to_datetime(df["issued"], errors="coerce").dt.date
+df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True, errors="coerce")
+
 df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
 if os.getenv("BUCKET") == "LOCAL":

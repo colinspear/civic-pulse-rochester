@@ -55,6 +55,13 @@ for col in FIELDS:
         else:
             df[col] = pd.NA                     # string
 
+# cast timestamps
+df["incident_datetime"] = pd.to_datetime(df["incident_datetime"],
+                                         utc=True, errors="coerce")
+df["pulled_utc"]        = pd.to_datetime(df["pulled_utc"],
+                                         utc=True, errors="coerce")
+
+# cast coordinates
 df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
     pd.to_numeric, errors="coerce"
 )

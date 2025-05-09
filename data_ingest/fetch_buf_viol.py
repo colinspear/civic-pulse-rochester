@@ -58,6 +58,9 @@ for col in FIELDS:
         else:
             df[col] = pd.NA
 
+df["date"]       = pd.to_datetime(df["date"],  errors="coerce").dt.date  # date32
+df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True, errors="coerce")
+
 df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
     pd.to_numeric, errors="coerce"
 )

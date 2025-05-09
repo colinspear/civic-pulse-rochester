@@ -56,6 +56,10 @@ for col in FIELDS:
         else:
             df[col] = pd.NA
 
+df["issdttm"]    = pd.to_datetime(df["issdttm"],    utc=True, errors="coerce")
+df["statusdttm"] = pd.to_datetime(df["statusdttm"], utc=True, errors="coerce")
+df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True, errors="coerce")
+
 df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
     pd.to_numeric, errors="coerce"
 )

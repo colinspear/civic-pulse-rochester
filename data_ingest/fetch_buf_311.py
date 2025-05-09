@@ -51,6 +51,10 @@ for col in FIELDS:
         else:
             df[col] = pd.NA                        # string
 
+df["createddate"] = pd.to_datetime(df["createddate"], utc=True, errors="coerce")
+df["closeddate"]  = pd.to_datetime(df["closeddate"],  utc=True, errors="coerce")
+df["pulled_utc"]  = pd.to_datetime(df["pulled_utc"],  utc=True, errors="coerce")
+
 df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
     pd.to_numeric, errors="coerce"
 )
