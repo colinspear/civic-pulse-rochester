@@ -18,13 +18,13 @@ if target:
     target_dt  = pd.to_datetime(target).date()
     since_iso  = target_dt.isoformat()
     y, m, d    = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
-    key = f"raw/buf_crime/year={y}/month={m}/day={d}/part-0.parquet"
+    key = f"raw/buf_permits/year={y}/month={m}/day={d}/part-0.parquet"
 else:
     lookback   = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
     since_dt   = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).date()
     since_iso  = since_dt.isoformat()
     ymd        = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
-    key = f"raw/buf_crime/{ymd}/part-0.parquet"
+    key = f"raw/buf_permits/{ymd}/part-0.parquet"
 
 primary_dt_field = "issued"
 
