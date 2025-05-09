@@ -49,7 +49,7 @@ df["pulled_utc"] = pd.Timestamp.utcnow()
 
 for col in FIELDS:
     if col not in df:
-        if col in ["issdttm", "pulled_utc"]:
+        if col in ["statusdttm", "licenseddttm", "issdttm", "pulled_utc"]:
             df[col] = pd.NaT
         elif col in ["latitude", "longitude"]:
             df[col] = pd.NA
