@@ -1,4 +1,4 @@
-name: backfill-last-30-days
+name: backfill-last-365-days
 on:
   workflow_dispatch:        # run manually from Actions tab
 
@@ -21,7 +21,7 @@ jobs:
 
       - name: Run extractors for the last 180 days
         run: |
-          for i in $(seq 0 179); do
+          for i in $(seq 0 364); do
             TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
             echo ">>> $TARGET_DATE"
             export TARGET_DATE
