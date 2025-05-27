@@ -83,8 +83,9 @@ def _geocode_chunk(chunk: pd.DataFrame, *, id_col: str, addr_cols: List[str]) ->
         ],
     )
 
-    out["latitude"] = out["coordinates"].str.split(",").str[1].astype(float)
-    out["longitude"] = out["coordinates"].str.split(",").str[0].astype(float)
+    coords = out["coordinates"].astype(str).str.split(",", expand=True)
+    out["longitude"] = pd.to_numeric(coords[0], errors="coerce")
+    out["latitude"]  = pd.to_numeric(coords[1], errors="coerce")
     out["match_ok"] = out["match"].eq("Match")
 
     return out[["id", "latitude", "longitude", "match_ok"]]
