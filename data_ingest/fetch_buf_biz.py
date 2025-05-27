@@ -5,14 +5,21 @@ Env: AWS_REGION  BUCKET
 Optional:  SOCRATA_APP_TOKEN  LOOKBACK_DAYS (default 30)
 """
 
-import os, sys, datetime, requests, pandas as pd, pyarrow as pa, pyarrow.parquet as pq, boto3
+from __future__ import annotations
+import requests, pandas as pd
+import os, sys, datetime, pyarrow as pa, pyarrow.parquet as pq, boto3
+from utils.geocode import census_batch_geocode
+
 
 BASE = "https://data.buffalony.gov/resource/qcyy-feh8.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ["uniqkey","code","descript","licstatus",
-          "statusdttm","licensedttm","issdttm","latitude","longitude"]
+          "statusdttm","licensedttm","issdttm",
+          "address", "city", "state", "zip", 
+          "latitude","longitude"]
 
 target = os.getenv("TARGET_DATE")           # fmt YYYY-MM-DD, optional
+lookback_default = 1
 
 if target:
     target_dt = pd.to_datetime(target).date()
@@ -20,8 +27,6 @@ if target:
     y,m,d = target_dt.year, f"{target_dt.month:02}", f"{target_dt.day:02}"
     key = f"raw/buf_biz/year={y}/month={m}/day={d}/part-0.parquet"
 else:
-    # default: yesterday look-back, run-date partition
-    lookback_default = 1
     lookback = int(os.getenv("LOOKBACK_DAYS", str(lookback_default)))
     since_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=lookback)).isoformat()
     ymd = datetime.datetime.utcnow().strftime("year=%Y/month=%m/day=%d")
@@ -60,10 +65,35 @@ df["issdttm"]    = pd.to_datetime(df["issdttm"],    utc=True, errors="coerce")
 df["statusdttm"] = pd.to_datetime(df["statusdttm"], utc=True, errors="coerce")
 df["licensedttm"] = pd.to_datetime(df["statusdttm"], utc=True, errors="coerce")
 df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True, errors="coerce")
+df.rename(columns={"latitude": "latitude_orig", "longitude": "longitude_orig"})
+df.reset_index(inplace=True, names='id')
 
-df[["latitude", "longitude"]] = df[["latitude", "longitude"]].apply(
-    pd.to_numeric, errors="coerce"
-)
+if df.shape[0] < 10000:
+    geo = census_batch_geocode(
+        df[["id", "address", "city", "state", "zip"]], 
+        id_col="id", 
+        addr_col=["address", "city", "state", "zip"]
+        )
+else:
+    geo = pd.DataFrame(columns=['latitude', 'longitude', 'match_ok'])
+    i = 0
+    while i < df.shape[0]:
+        j = i + 9999
+        print(f"Processing rows {i}-{j}")
+        batch_df = geocode_df.iloc[i:j]
+
+        try:
+            _ = census_batch_geocode(batch_df, id_col="id", addr_col="geo_addr")
+            geo = pd.concat([geo, _], ignore_index=True)
+
+        except:
+            print(f'  {i}-{j} raised an exception.')
+        
+        i += 10000
+
+df = df.merge(geo, how="left", on="id", suffixes=["_orig", ""])
+geo_cols = ["latitude_orig", "longitude_orig", "latitude", "longitude"]
+df[geo_cols] = df[geo_cols].apply(pd.to_numeric, errors="coerce")
 
 if os.getenv("BUCKET") == "LOCAL":
     out = f'biz_test_{datetime.datetime.utcnow().strftime("%Y-%m-%d")}.csv'
@@ -72,16 +102,23 @@ if os.getenv("BUCKET") == "LOCAL":
     sys.exit(0)
 
 schema = pa.schema([
-    ("uniqkey",     pa.string()),
-    ("code",        pa.string()),
-    ("descript",    pa.string()),
-    ("licstatus",   pa.string()),
-    ("statusdttm",  pa.timestamp("us")),
-    ("licensedttm", pa.timestamp("us")),
-    ("issdttm",     pa.timestamp("us")),
-    ("latitude",    pa.float64()),
-    ("longitude",   pa.float64()),
-    ("pulled_utc",  pa.timestamp("us"))
+    ("uniqkey",         pa.string()),
+    ("code",            pa.string()),
+    ("descript",        pa.string()),
+    ("licstatus",       pa.string()),
+    ("statusdttm",      pa.timestamp("us")),
+    ("licensedttm",     pa.timestamp("us")),
+    ("issdttm",         pa.timestamp("us")),
+    ("address",         pa.string()),
+    ("city",            pa.string()),
+    ("state",           pa.string()),
+    ("zip",             pa.string()),
+    ("latitude_orig",   pa.float64()),
+    ("longitude_orig",  pa.float64()),
+    ("latitude",        pa.float64()),
+    ("longitude",       pa.float64()),
+    ("match_ok",        pa.bool_()),
+    ("pulled_utc",      pa.timestamp("us"))
 ])
 
 table = pa.Table.from_pandas(df, schema=schema)
