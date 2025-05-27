@@ -68,30 +68,13 @@ df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True, errors="coerce")
 df.rename(columns={"latitude": "latitude_orig", "longitude": "longitude_orig"})
 df.reset_index(inplace=True, names='id')
 
-if df.shape[0] < 10000:
-    geo = census_batch_geocode(
+geo_df = census_batch_geocode(
         df[["id", "address", "city", "state", "zip"]], 
         id_col="id", 
         addr_col=["address", "city", "state", "zip"]
         )
-else:
-    geo = pd.DataFrame(columns=['latitude', 'longitude', 'match_ok'])
-    i = 0
-    while i < df.shape[0]:
-        j = i + 9999
-        print(f"Processing rows {i}-{j}")
-        batch_df = geocode_df.iloc[i:j]
 
-        try:
-            _ = census_batch_geocode(batch_df, id_col="id", addr_col="geo_addr")
-            geo = pd.concat([geo, _], ignore_index=True)
-
-        except:
-            print(f'  {i}-{j} raised an exception.')
-        
-        i += 10000
-
-df = df.merge(geo, how="left", on="id", suffixes=["_orig", ""])
+df = df.merge(geo_df, how="left", on="id", suffixes=["_orig", ""])
 geo_cols = ["latitude_orig", "longitude_orig", "latitude", "longitude"]
 df[geo_cols] = df[geo_cols].apply(pd.to_numeric, errors="coerce")
 
