@@ -3,8 +3,10 @@ requests
 awswrangler
 pandas
 geopandas
+pydeck
 shapely
 scikit-learn
+streamlit
 xgboost
 shap
 boto3

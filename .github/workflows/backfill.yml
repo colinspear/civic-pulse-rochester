@@ -11,6 +11,7 @@ jobs:
       AWS_REGION:            ${{ secrets.AWS_REGION }}
       BUCKET:                ${{ secrets.BUCKET }}
       SOCRATA_APP_TOKEN:     ${{ secrets.SOCRATA_APP_TOKEN }}
+      ATHENA_WORKGROUP_NAME: ${{ secrets.ATHENA_WORKGROUP_NAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,11 +26,11 @@ jobs:
             TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
             echo ">>> $TARGET_DATE"
             export TARGET_DATE
-            python data_ingest/fetch_buf_crime.py
+            # python data_ingest/fetch_buf_crime.py
             python data_ingest/fetch_buf_permits.py
-            python data_ingest/fetch_buf_viol.py
+            # python data_ingest/fetch_buf_viol.py
             python data_ingest/fetch_buf_biz.py
-            python data_ingest/fetch_buf_311.py
+            # python data_ingest/fetch_buf_311.py
             sleep 2        # polite pause → ~30 min total extra
           done
 
