@@ -11,7 +11,7 @@ from utils.geocode import census_batch_geocode
 BASE = "https://data.buffalony.gov/resource/9p2d-f3yt.json"
 TOKEN = os.getenv("SOCRATA_APP_TOKEN", "")
 FIELDS = ["apno","aptype","issued","stname", "city",
-          "state", "zip", "value"]
+          "state", "zip", "latitude", "longitude", "value"]
 
 lookback_default = 1
 target = os.getenv("TARGET_DATE")
@@ -62,9 +62,9 @@ df.reset_index(inplace=True, names='id')
 
 if df.shape[0] < 10000:
     geo = census_batch_geocode(
-        df[["id", "address", "city", "state", "zip"]], 
+        df[["id", "stname", "city", "state", "zip"]], 
         id_col="id", 
-        addr_col=["address", "city", "state", "zip"]
+        addr_col=["stname", "city", "state", "zip"]
         )
 else:
     geo = pd.DataFrame(columns=['latitude', 'longitude', 'match_ok'])

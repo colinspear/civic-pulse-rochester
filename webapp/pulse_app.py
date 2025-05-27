@@ -16,6 +16,8 @@ DATABASE = "civic_pulse"
 METRICS_VIEW = "civic_pulse.vw_pulse_metrics_latest"
 SHAP_VIEW    = "civic_pulse.vw_pulse_shap_latest"
 
+tracts = "../data/erie_tracts.geojson"
+
 wr.config.athena_output_location = "s3://civic-pulse-rochester/athena_results/"
 @st.cache_data(show_spinner=False)
 def load_metrics():
@@ -28,7 +30,7 @@ def load_shap():
 
 @st.cache_data(show_spinner=False)
 def load_tract_shapes() -> gpd.GeoDataFrame:
-    gdf = gpd.read_file("erie_tracts.geojson").to_crs(epsg=4326)
+    gdf = gpd.read_file(tracts).to_crs(epsg=4326)
     gdf["tract"] = gdf["GEOID"]          # keep a plain str key
     return gdf[["tract", "geometry"]]
 
@@ -54,9 +56,9 @@ left, right = st.columns([2, 1])
 with left:
     st.subheader("Pulse index by census tract")
     # Build GeoJSON from the metrics table (lazily cached on disk)
-    geojson_path = Path("erie_tracts.geojson")
+    geojson_path = Path(tracts)
     if not geojson_path.exists():
-        st.error("Missing erie_tracts.geojson – place it next to this script.")
+        st.error("Missing {tracts} – place it next to this script.")
         st.stop()
     with geojson_path.open() as f:
         geojson = json.load(f)
