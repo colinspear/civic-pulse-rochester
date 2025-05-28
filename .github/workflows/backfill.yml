@@ -1,6 +1,11 @@
 name: backfill-last-365-days
 on:
   workflow_dispatch:        # run manually from Actions tab
+    inputs:
+      target_date:             # <-- add this block if not present
+        description: "YYYY-MM-DD (single day). Leave blank for default behaviour"
+        required: false
+        type: string
 
 jobs:
   backfill:
@@ -12,7 +17,8 @@ jobs:
       BUCKET:                ${{ secrets.BUCKET }}
       SOCRATA_APP_TOKEN:     ${{ secrets.SOCRATA_APP_TOKEN }}
       ATHENA_WORKGROUP_NAME: ${{ secrets.ATHENA_WORKGROUP_NAME }}
-    steps:
+      TARGET_DATE: ${{ inputs.target_date }}   # <-- pass to extractor
+   steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -22,17 +28,17 @@ jobs:
 
       - name: Run extractors for the last 365 days
         run: |
-          for i in $(seq 0 364); do
-            TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
+          # for i in $(seq 0 364); do
+            # TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
             echo ">>> $TARGET_DATE"
             export TARGET_DATE
-            python data_ingest/fetch_buf_crime.py
-            python data_ingest/fetch_buf_permits.py
-            python data_ingest/fetch_buf_viol.py
+            # python data_ingest/fetch_buf_crime.py
+            # python data_ingest/fetch_buf_permits.py
+            # python data_ingest/fetch_buf_viol.py
             python data_ingest/fetch_buf_biz.py
-            python data_ingest/fetch_buf_311.py
+            # python data_ingest/fetch_buf_311.py
             sleep 2        # polite pause → ~30 min total extra
-          done
+          # done
 
       - name: Repair partitions
         run: |
