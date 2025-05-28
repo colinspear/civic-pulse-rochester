@@ -20,9 +20,9 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run extractors for the last 180 days
+      - name: Run extractors for the last 365 days
         run: |
-          for i in $(seq 120 364); do
+          for i in $(seq 0 364); do
             TARGET_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d")
             echo ">>> $TARGET_DATE"
             export TARGET_DATE
