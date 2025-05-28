@@ -29,7 +29,7 @@ jobs:
       - name: Run extractors for the last 365 days
         run: |
           for i in {15..27}; do
-            TARGET_DATE="2024-09-$(printf "%02d" $d)"
+            TARGET_DATE="2024-09-$(printf "%02d" $i)"
             echo ">>> $TARGET_DATE"
             export TARGET_DATE
             python data_ingest/fetch_buf_biz.py
