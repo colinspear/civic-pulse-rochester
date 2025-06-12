@@ -11,6 +11,8 @@ Run with:  streamlit run pulse_app.py
 import os, json, boto3, pandas as pd, geopandas as gpd, streamlit as st, pydeck as pdk, awswrangler as wr, shap
 from .utils import extract_tract_from_event
 from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
 
 # ───────────────────────── AWS + Athena helpers ──
 DATABASE = "civic_pulse"
@@ -51,8 +53,7 @@ latest_ts = pd.to_datetime(metrics["30_day_start"].max()).date()
 
 tract_gdf = tract_shapes.merge(metrics, on="tract", how="left").fillna(0)
 # -- keep min/max for colour scaling
-minScore, maxScore = tract_gdf["score"].min(), tract_gdf["score"].max()
-score_norm = "(properties.score - minScore) / (maxScore - minScore)"
+min_score, max_score = tract_gdf["score"].min(), tract_gdf["score"].max()
 
 # Initialise session state for selected tract
 if "selected_tract" not in st.session_state:
@@ -82,7 +83,8 @@ with left:
         tract_id = feat["properties"]["GEOID"]
         feat["properties"]["score"] = score_map.get(tract_id)
     # PyDeck choropleth
-    scoreNorm_expr = "(properties.score - minScore) / (maxScore - minScore)"
+    # Normalise score 0‑1 for colour
+    score_norm = f"(properties.score - {min_score}) / ({max_score - min_score})"
 
     # GeoPandas can't directly serialise Python ``date`` objects.
     # ``default=str`` converts them to ISO formatted strings for JSON output.
@@ -99,10 +101,6 @@ with left:
         opacity=0.6,
     )
 
-    # normalise score 0‑1 for colour
-    smin, smax = metrics["score"].min(), metrics["score"].max()
-    scoreNorm_expr = f"(properties.score - {smin}) / ({smax - smin})"  # used in get_fill_color
-
     view_state = pdk.ViewState(latitude=42.9, longitude=-78.85, zoom=10.5)
     r = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{GEOID}\nScore: {score}"})
     event = st.pydeck_chart(
@@ -111,6 +109,15 @@ with left:
         on_select="rerun",
         key="map",
     )
+
+    # Draw a simple colour scale legend
+    gradient = np.linspace(0, 1, 256).reshape(1, -1)
+    cmap = plt.cm.get_cmap("autumn_r")
+    fig, ax = plt.subplots(figsize=(4, 0.3))
+    ax.imshow(gradient, aspect="auto", cmap=cmap)
+    ax.set_axis_off()
+    st.pyplot(fig)
+    st.caption("Redder tracts have higher pulse scores (more distress)")
 
     # Update selected tract when a polygon is clicked
     tract_id = extract_tract_from_event(event)
@@ -148,7 +155,6 @@ with right:
     if sub.empty:
         st.write("SHAP not available – tract lacked data in training window.")
     else:
-        import matplotlib.pyplot as plt, numpy as np
         order = sub.groupby("feature")["shap"].mean().abs().sort_values().index
         fig, ax = plt.subplots(figsize=(4,3))
         ax.barh(order, sub.groupby("feature")["shap"].mean().loc[order])
