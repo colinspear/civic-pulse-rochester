@@ -9,7 +9,7 @@ Prereqs  ───────────────────────�
 Run with:  streamlit run pulse_app.py
 """
 import os, json, boto3, pandas as pd, geopandas as gpd, streamlit as st, pydeck as pdk, awswrangler as wr, shap
-from .utils import extract_tract_from_event
+from utils import extract_tract_from_event
 from pathlib import Path
 
 # ───────────────────────── AWS + Athena helpers ──
