@@ -9,6 +9,7 @@ Prereqs  ───────────────────────�
 Run with:  streamlit run pulse_app.py
 """
 import os, json, boto3, pandas as pd, geopandas as gpd, streamlit as st, pydeck as pdk, awswrangler as wr, shap
+from .utils import extract_tract_from_event
 from pathlib import Path
 
 # ───────────────────────── AWS + Athena helpers ──
@@ -34,6 +35,8 @@ def load_tract_shapes() -> gpd.GeoDataFrame:
     gdf["tract"] = gdf["GEOID"]          # keep a plain str key
     return gdf[["tract", "geometry"]]
 
+
+
 tract_shapes = load_tract_shapes()
 metrics   = load_metrics()
 shap_long = load_shap()
@@ -43,6 +46,10 @@ tract_gdf = tract_shapes.merge(metrics, on="tract", how="left").fillna(0)
 # -- keep min/max for colour scaling
 minScore, maxScore = tract_gdf["score"].min(), tract_gdf["score"].max()
 score_norm = "(properties.score - minScore) / (maxScore - minScore)"
+
+# Initialise session state for selected tract
+if "selected_tract" not in st.session_state:
+    st.session_state.selected_tract = metrics["tract"].iloc[0]
 
 # ───────────────────────── UI layout ─────────────
 st.set_page_config(page_title="Buffalo Civic‑Pulse", layout="wide")
@@ -72,7 +79,8 @@ with left:
 
     layer = pdk.Layer(
         "GeoJsonLayer",
-        data=tract_gdf,          # <-- now defined
+        data=tract_gdf,
+        id="tract-layer",
         pickable=True,
         auto_highlight=True,
         getFillColor=f"[255, 200 * (1 - {score_norm}), 0]",
@@ -87,12 +95,22 @@ with left:
 
     view_state = pdk.ViewState(latitude=42.9, longitude=-78.85, zoom=10.5)
     r = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{GEOID}\nScore: {score}"})
-    st.pydeck_chart(r, use_container_width=True)
+    event = st.pydeck_chart(
+        r,
+        use_container_width=True,
+        on_select="rerun",
+        key="map",
+    )
+
+    # Update selected tract when a polygon is clicked
+    tract_id = extract_tract_from_event(event)
+    if tract_id:
+        st.session_state.selected_tract = tract_id
 
 # ───────────────────────── Side panel – SHAP / details ──
 with right:
     st.subheader("Tract drill‑down")
-    clicked = st.text_input("Enter tract GEOID", "36029006100")
+    clicked = st.text_input("Enter tract GEOID", key="selected_tract")
     if clicked not in metrics["tract"].values:
         st.info("Click a tract on the map or enter a GEOID")
         st.stop()
