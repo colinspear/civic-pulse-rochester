@@ -1,4 +1,4 @@
-pyarrow
+pyarrow==14.0.1
 requests
 awswrangler
 pandas

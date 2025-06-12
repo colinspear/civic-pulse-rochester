@@ -1,10 +1,9 @@
-# Civic Pulse – Rochester
-
-These steps outline how to run the Streamlit app and the ingestion scripts locally.
+Civic Pulse – Rochester
 
 ## Setup
 
-Create and activate a Python 3.11 virtual environment:
+This project targets **Python 3.11**, matching the version used in CI. Using newer Python versions may fail to install `pyarrow` because wheels are
+not always available. Install the dependencies with:
 
 ```bash
 python3.11 -m venv .venv
