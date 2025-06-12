@@ -18,6 +18,8 @@ METRICS_VIEW = "civic_pulse.vw_pulse_metrics_latest"
 SHAP_VIEW    = "civic_pulse.vw_pulse_shap_latest"
 
 tracts = "../data/erie_tracts.geojson"
+# Only allow Buffalo (Erie County, NY) tracts
+ERIE_TRACT_PREFIX = "36029"
 
 wr.config.athena_output_location = "s3://civic-pulse-rochester/athena_results/"
 @st.cache_data(show_spinner=False)
@@ -40,6 +42,11 @@ def load_tract_shapes() -> gpd.GeoDataFrame:
 tract_shapes = load_tract_shapes()
 metrics   = load_metrics()
 shap_long = load_shap()
+
+# Restrict all dataframes to Erie County tracts
+tract_shapes = tract_shapes[tract_shapes["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
+metrics = metrics[metrics["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
+shap_long = shap_long[shap_long["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
 latest_ts = pd.to_datetime(metrics["30_day_start"].max()).date()
 
 tract_gdf = tract_shapes.merge(metrics, on="tract", how="left").fillna(0)
@@ -107,7 +114,7 @@ with left:
 
     # Update selected tract when a polygon is clicked
     tract_id = extract_tract_from_event(event)
-    if tract_id:
+    if tract_id and tract_id in metrics["tract"].values:
         st.session_state.selected_tract = tract_id
 
 # ───────────────────────── Side panel – SHAP / details ──
@@ -115,7 +122,7 @@ with right:
     st.subheader("Tract drill‑down")
     clicked = st.text_input("Enter tract GEOID", key="selected_tract")
     if clicked not in metrics["tract"].values:
-        st.info("Click a tract on the map or enter a GEOID")
+        st.info("Click a tract on the map or enter an Erie County GEOID")
         st.stop()
     row = metrics.loc[metrics["tract"] == clicked].iloc[0]
     st.metric("Pulse score", f"{row['score']:.2f}")
