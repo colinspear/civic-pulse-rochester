@@ -1,4 +1,6 @@
 pyarrow==14.0.1
+numpy<2
+packaging<25
 requests
 awswrangler
 pandas

@@ -3,7 +3,8 @@ Civic Pulse – Rochester
 ## Setup
 
 This project targets **Python 3.11**, matching the version used in CI. Using newer Python versions may fail to install `pyarrow` because wheels are
-not always available. Install the dependencies with:
+not always available.  The dependency stack also requires **NumPy < 2** so that
+`pyarrow` and `awswrangler` load correctly.  Install the dependencies with:
 
 ```bash
 python3.11 -m venv .venv
