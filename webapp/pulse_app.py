@@ -120,9 +120,21 @@ with right:
     row = metrics.loc[metrics["tract"] == clicked].iloc[0]
     st.metric("Pulse score", f"{row['score']:.2f}")
     st.caption("Component metrics (30‑day totals)")
-    st.write(row[["crime_per_1k","vacant_code_count","permit_count","licence_count","calls_count"]]
-              .rename({"crime_per_1k":"Crime/1k pop",
-                       "vacant_code_count":"Vacant code"}, axis=0))
+    # Handle legacy + current column names gracefully
+    metric_cols = {
+        "Crime/1k pop": ["crime_per_1k", "crime_rate"],
+        "Vacant code": ["vacant_code_count", "vacant_code_cnt", "vacant_rate"],
+        "Permits": ["permit_count", "permit_cnt", "permit_rate"],
+        "Licences": ["licence_count", "licence_cnt", "license_count", "licence_rate"],
+        "311 calls": ["calls_count", "calls_cnt", "calls_rate"],
+    }
+    vals = {}
+    for label, candidates in metric_cols.items():
+        for c in candidates:
+            if c in row:
+                vals[label] = row[c]
+                break
+    st.write(pd.Series(vals))
 
     st.caption("Feature influence (SHAP)")
     sub = shap_long[shap_long.tract == clicked]
