@@ -77,9 +77,10 @@ with left:
     # PyDeck choropleth
     scoreNorm_expr = "(properties.score - minScore) / (maxScore - minScore)"
 
+    geojson_data = json.loads(tract_gdf.to_json())
     layer = pdk.Layer(
         "GeoJsonLayer",
-        data=tract_gdf,
+        data=geojson_data,
         id="tract-layer",
         pickable=True,
         auto_highlight=True,
