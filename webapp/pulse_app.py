@@ -77,7 +77,9 @@ with left:
     # PyDeck choropleth
     scoreNorm_expr = "(properties.score - minScore) / (maxScore - minScore)"
 
-    geojson_data = json.loads(tract_gdf.to_json())
+    # GeoPandas can't directly serialise Python ``date`` objects.
+    # ``default=str`` converts them to ISO formatted strings for JSON output.
+    geojson_data = json.loads(tract_gdf.to_json(default=str))
     layer = pdk.Layer(
         "GeoJsonLayer",
         data=geojson_data,
