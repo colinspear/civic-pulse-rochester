@@ -1,13 +1,12 @@
 """
-Buffalo Civic‑Pulse – Streamlit front‑end (Plotly edition)
-=========================================================
-Swaps the previous pydeck map for a Plotly Mapbox choropleth and uses
-`streamlit‑plotly‑mapbox‑events` to capture polygon clicks so the sidebar
-updates automatically.
-
-Run:
-    pip install streamlit plotly streamlit-plotly-mapbox-events geopandas awswrangler shap matplotlib
-    streamlit run pulse_app.py
+Buffalo Civic‑Pulse – Streamlit front‑end  
+• Choropleth of the latest monthly pulse index  
+• SHAP bar chart + narrative for clicked tract  
+Prereqs  ──────────────────────────────────────────────
+  pip install streamlit pandas pydeck boto3 awswrangler shap matplotlib
+  export AWS_REGION=us‑east‑1  (and AWS creds w/ read‑only S3/Athena)
+  export MAPBOX_TOKEN=<your token>
+Run with:  streamlit run pulse_app.py
 """
 import os, json, boto3, pandas as pd, geopandas as gpd, streamlit as st, pydeck as pdk, awswrangler as wr, shap
 from utils import extract_tract_from_event
@@ -15,39 +14,32 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-import awswrangler as wr
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import shap
-import streamlit as st
-from streamlit_plotly_mapbox_events import plotly_mapbox_events
+# ───────────────────────── AWS + Athena helpers ──
+DATABASE = "civic_pulse"
+METRICS_VIEW = "civic_pulse.vw_pulse_metrics_latest"
+SHAP_VIEW    = "civic_pulse.vw_pulse_shap_latest"
 
 tracts = "../data/erie_tracts.geojson"
 # Only allow Buffalo (Erie County, NY) tracts
 ERIE_TRACT_PREFIX = "36029"
 
-wr.config.athena_output_location = ATHENA_OUT
-
-# ── Data loaders --------------------------------------------------------
+wr.config.athena_output_location = "s3://civic-pulse-rochester/athena_results/"
 @st.cache_data(show_spinner=False)
 def load_metrics():
-    return wr.athena.read_sql_query(f"SELECT * FROM {METRICS_SQL}", database=DB)
+    return wr.athena.read_sql_query(f"SELECT * FROM {METRICS_VIEW}", database=DATABASE)
 
 @st.cache_data(show_spinner=False)
 def load_shap():
-    return wr.athena.read_sql_query(f"SELECT * FROM {SHAP_SQL}", database=DB)
+    df = wr.athena.read_sql_query(f"SELECT * FROM {SHAP_VIEW}", database=DATABASE)
+    return df
 
 @st.cache_data(show_spinner=False)
-def load_geo(tract_path: Path):
-    if not tract_path.exists():
-        st.error(f"Missing {tract_path} – place it next to this script.")
-        st.stop()
-    gdf = gpd.read_file(tract_path).to_crs(epsg=4326)
-    gdf["tract"] = gdf["GEOID"]
+def load_tract_shapes() -> gpd.GeoDataFrame:
+    gdf = gpd.read_file(tracts).to_crs(epsg=4326)
+    gdf["tract"] = gdf["GEOID"]          # keep a plain str key
     return gdf[["tract", "geometry"]]
+
+
 
 tract_shapes = load_tract_shapes()
 metrics   = load_metrics()
@@ -70,10 +62,12 @@ if "selected_tract" not in st.session_state:
 # ───────────────────────── UI layout ─────────────
 st.set_page_config(page_title="Buffalo Civic‑Pulse", layout="wide")
 st.title("Buffalo Civic‑Pulse")
+# st.caption(f"Latest 30‑day window starting {latest_ts:%B %d, %Y}")
 st.caption(f"Latest 30‑day window starting {latest_ts}")
+
 left, right = st.columns([2, 1])
 
-# ── Map panel (Plotly) --------------------------------------------------
+# ───────────────────────── Map panel ─────────────
 with left:
     st.subheader("Pulse index by census tract")
     # Build GeoJSON from the metrics table (lazily cached on disk)
@@ -105,7 +99,6 @@ with left:
         getLineColor=[80, 80, 80],
         lineWidthMinPixels=0.5,
         opacity=0.6,
-        height=650,
     )
 
     view_state = pdk.ViewState(latitude=42.9, longitude=-78.85, zoom=10.5)
@@ -124,19 +117,13 @@ with left:
     if tract_id and tract_id in metrics["tract"].values:
         st.session_state.selected_tract = tract_id
 
-    if clicks:
-        tract_id = clicks[0].get("location")  # GEOID
-        if tract_id:
-            st.session_state["selected_tract"] = tract_id
-
-# ── Drill‑down panel ----------------------------------------------------
+# ───────────────────────── Side panel – SHAP / details ──
 with right:
     st.subheader("Tract drill‑down")
     clicked = st.text_input("Enter tract GEOID", key="selected_tract")
     if clicked not in metrics["tract"].values:
         st.info("Click a tract on the map or enter an Erie County GEOID")
         st.stop()
-
     row = metrics.loc[metrics["tract"] == clicked].iloc[0]
     st.metric("Pulse score", f"{row['score']:.2f}")
     st.caption("Component metrics (30‑day totals)")
@@ -157,19 +144,20 @@ with right:
     st.write(pd.Series(vals))
 
     st.caption("Feature influence (SHAP)")
-    sub = shap_long[shap_long["tract"] == clicked]
+    sub = shap_long[shap_long.tract == clicked]
     if sub.empty:
         st.write("SHAP not available – tract lacked data in training window.")
     else:
         order = sub.groupby("feature")["shap"].mean().abs().sort_values().index
-        fig2, ax2 = plt.subplots(figsize=(4, 3))
-        ax2.barh(order, sub.groupby("feature")["shap"].mean().loc[order])
-        ax2.set_xlabel("Mean |SHAP|")
-        st.pyplot(fig2, use_container_width=True)
+        fig, ax = plt.subplots(figsize=(4,3))
+        ax.barh(order, sub.groupby("feature")["shap"].mean().loc[order])
+        ax.set_xlabel("Mean |SHAP|")
+        st.pyplot(fig, use_container_width=True)
 
-        top = (
-            sub.groupby("feature")["shap"].mean().abs().sort_values(ascending=False).head(3)
+        # Narrative stub
+        top = sub.groupby("feature")["shap"].mean().abs().sort_values(ascending=False).head(3)
+        narrative = (
+            f"In this tract, the pulse score is driven mainly by **{top.index[0]}**, "
+            f"followed by **{top.index[1]}** and **{top.index[2]}**."
         )
-        st.markdown(
-            f"Pulse score here is driven mainly by **{top.index[0]}**, followed by **{top.index[1]}** and **{top.index[2]}**."
-        )
+        st.markdown(narrative)
