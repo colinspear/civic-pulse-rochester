@@ -110,13 +110,6 @@ with left:
         key="map",
     )
 
-    # Draw a simple colour scale legend
-    gradient = np.linspace(0, 1, 256).reshape(1, -1)
-    cmap = plt.cm.get_cmap("autumn_r")
-    fig, ax = plt.subplots(figsize=(4, 0.3))
-    ax.imshow(gradient, aspect="auto", cmap=cmap)
-    ax.set_axis_off()
-    st.pyplot(fig)
     st.caption("Redder tracts have higher pulse scores (more distress)")
 
     # Update selected tract when a polygon is clicked

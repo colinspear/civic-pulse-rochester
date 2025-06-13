@@ -12,3 +12,5 @@ streamlit
 xgboost
 shap
 boto3
+matplotlib
+
