@@ -86,6 +86,8 @@ if not rows:
 df = pd.DataFrame(rows)
 
 df["pulled_utc"] = pd.Timestamp.utcnow()
+df["city"] = df["city"].fillna("Buffalo")
+df["state"] = df["state"].fillna("New York")
 
 for col in FIELDS:
     if col not in df:

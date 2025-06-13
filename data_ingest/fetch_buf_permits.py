@@ -105,6 +105,8 @@ for ncol in ("latitude", "longitude", "value"):
     df[ncol] = pd.to_numeric(df[ncol], errors="coerce")
 
 df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True)
+df["city"] = df["city"].fillna("Buffalo")
+df["state"] = df["state"].fillna("New York")
 
 df.rename(columns={"latitude": "latitude_orig", "longitude": "longitude_orig"}, inplace=True)
 df.reset_index(inplace=True, names="id")

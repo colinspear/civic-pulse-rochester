@@ -1,6 +1,7 @@
 data/
-*.parquet
+scratch/
 .venv/
+__pycache__/
+*.parquet
 temp
 .env
-__pycache__/

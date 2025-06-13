@@ -110,6 +110,8 @@ for tcol in ("statusdttm", "licensedttm", "issdttm"):
     df[tcol] = pd.to_datetime(df[tcol], utc=True, errors="coerce")
 
 df["pulled_utc"] = pd.to_datetime(df["pulled_utc"], utc=True)
+df["city"] = df["city"].fillna("Buffalo")
+df["state"] = df["state"].fillna("New York")
 
 # rename original coords before geocode overwrite
 df.rename(columns={"latitude": "latitude_orig", "longitude": "longitude_orig"}, inplace=True)
