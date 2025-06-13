@@ -9,12 +9,11 @@ Run:
     pip install streamlit plotly streamlit-plotly-mapbox-events geopandas awswrangler shap matplotlib
     streamlit run pulse_app.py
 """
-
-from __future__ import annotations
-
-import json
-import os
+import os, json, boto3, pandas as pd, geopandas as gpd, streamlit as st, pydeck as pdk, awswrangler as wr, shap
+from utils import extract_tract_from_event
 from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
 
 import awswrangler as wr
 import geopandas as gpd
@@ -26,12 +25,9 @@ import shap
 import streamlit as st
 from streamlit_plotly_mapbox_events import plotly_mapbox_events
 
-# ── Config -------------------------------------------------------------
-DB          = "civic_pulse"
-METRICS_SQL = "civic_pulse.vw_pulse_metrics_latest"
-SHAP_SQL    = "civic_pulse.vw_pulse_shap_latest"
-ATHENA_OUT  = "s3://civic-pulse-rochester/athena_results/"
-TRACTS_FILE = Path(__file__).with_name("erie_tracts.geojson")
+tracts = "../data/erie_tracts.geojson"
+# Only allow Buffalo (Erie County, NY) tracts
+ERIE_TRACT_PREFIX = "36029"
 
 wr.config.athena_output_location = ATHENA_OUT
 
@@ -53,25 +49,25 @@ def load_geo(tract_path: Path):
     gdf["tract"] = gdf["GEOID"]
     return gdf[["tract", "geometry"]]
 
-@st.cache_data(show_spinner=False)
-def build_geojson(_shape_gdf: gpd.GeoDataFrame):
-    """Return pure GeoJSON dict (no score added – Plotly uses locations).
-    Cast any dates to str to keep JSON serialisable.
-    """
-    gdf = _shape_gdf.copy()
-    for col in gdf.columns:
-        if pd.api.types.is_datetime64_any_dtype(gdf[col]):
-            gdf[col] = gdf[col].dt.strftime("%Y-%m-%d")
-    return json.loads(gdf.to_json())
-
-# ── Load data -----------------------------------------------------------
+tract_shapes = load_tract_shapes()
 metrics   = load_metrics()
 shap_long = load_shap()
-tract_gdf = load_geo(TRACTS_FILE)
-geojson   = build_geojson(tract_gdf)
+
+# Restrict all dataframes to Erie County tracts
+tract_shapes = tract_shapes[tract_shapes["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
+metrics = metrics[metrics["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
+shap_long = shap_long[shap_long["tract"].astype(str).str.startswith(ERIE_TRACT_PREFIX)]
 latest_ts = pd.to_datetime(metrics["30_day_start"].max()).date()
 
-# ── Streamlit UI --------------------------------------------------------
+tract_gdf = tract_shapes.merge(metrics, on="tract", how="left").fillna(0)
+# -- keep min/max for colour scaling
+min_score, max_score = tract_gdf["score"].min(), tract_gdf["score"].max()
+
+# Initialise session state for selected tract
+if "selected_tract" not in st.session_state:
+    st.session_state.selected_tract = metrics["tract"].iloc[0]
+
+# ───────────────────────── UI layout ─────────────
 st.set_page_config(page_title="Buffalo Civic‑Pulse", layout="wide")
 st.title("Buffalo Civic‑Pulse")
 st.caption(f"Latest 30‑day window starting {latest_ts}")
@@ -80,34 +76,53 @@ left, right = st.columns([2, 1])
 # ── Map panel (Plotly) --------------------------------------------------
 with left:
     st.subheader("Pulse index by census tract")
+    # Build GeoJSON from the metrics table (lazily cached on disk)
+    geojson_path = Path(tracts)
+    if not geojson_path.exists():
+        st.error("Missing {tracts} – place it next to this script.")
+        st.stop()
+    with geojson_path.open() as f:
+        geojson = json.load(f)
+    # Merge score into Feature properties
+    score_map = dict(zip(metrics["tract"], metrics["score"]))
+    for feat in geojson["features"]:
+        tract_id = feat["properties"]["GEOID"]
+        feat["properties"]["score"] = score_map.get(tract_id)
+    # PyDeck choropleth
+    # Normalise score 0‑1 for colour
+    score_norm = f"(properties.score - {min_score}) / ({max_score - min_score})"
 
-    fig = px.choropleth_mapbox(
-        metrics,
-        geojson=geojson,
-        locations="tract",
-        color="score",
-        color_continuous_scale="YlOrRd",
-        range_color=(metrics.score.min(), metrics.score.max()),
-        featureidkey="properties.tract",   # <-- tell Plotly where the GEOID lives
-        mapbox_style="carto-positron",
-        zoom=9.8,
-        center={"lat": 42.9, "lon": -78.85},
+    # GeoPandas can't directly serialise Python ``date`` objects.
+    # ``default=str`` converts them to ISO formatted strings for JSON output.
+    geojson_data = json.loads(tract_gdf.to_json(default=str))
+    layer = pdk.Layer(
+        "GeoJsonLayer",
+        data=geojson_data,
+        id="tract-layer",
+        pickable=True,
+        auto_highlight=True,
+        getFillColor=f"[255, 200 * (1 - {score_norm}), 0]",
+        getLineColor=[80, 80, 80],
+        lineWidthMinPixels=0.5,
         opacity=0.6,
         height=650,
     )
 
-    fig.update_layout(margin=dict(r=0, t=0, l=0, b=0))
-    fig.update_coloraxes(colorbar_title="Pulse score")
-
-    # Capture clicks
-    clicks, *_ = plotly_mapbox_events(
-        fig,
-        click_event=True,
-        select_event=False,
-        hover_event=False,
-        override_height=650,
-        key="pulse_map",
+    view_state = pdk.ViewState(latitude=42.9, longitude=-78.85, zoom=10.5)
+    r = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{GEOID}\nScore: {score}"})
+    event = st.pydeck_chart(
+        r,
+        use_container_width=True,
+        on_select="rerun",
+        key="map",
     )
+
+    st.caption("Redder tracts have higher pulse scores (more distress)")
+
+    # Update selected tract when a polygon is clicked
+    tract_id = extract_tract_from_event(event)
+    if tract_id and tract_id in metrics["tract"].values:
+        st.session_state.selected_tract = tract_id
 
     if clicks:
         tract_id = clicks[0].get("location")  # GEOID
@@ -117,34 +132,29 @@ with left:
 # ── Drill‑down panel ----------------------------------------------------
 with right:
     st.subheader("Tract drill‑down")
-
-    default_tract = st.session_state.get("selected_tract",
-                                         metrics["tract"].iloc[0])
-    clicked = st.text_input("Enter tract GEOID", value=default_tract)
-
+    clicked = st.text_input("Enter tract GEOID", key="selected_tract")
     if clicked not in metrics["tract"].values:
-        st.info("Click a tract on the map or enter a valid GEOID.")
+        st.info("Click a tract on the map or enter an Erie County GEOID")
         st.stop()
 
     row = metrics.loc[metrics["tract"] == clicked].iloc[0]
     st.metric("Pulse score", f"{row['score']:.2f}")
-
-    cols = [
-        "crime_rate",
-        "vacant_code_cnt",
-        "permit_cnt",
-        "licence_cnt",
-        "calls_cnt",
-    ]
-    labels = {
-        "crime_rate": "Crime /1k pop",
-        "vacant_code_cnt": "Vacant codes",
-        "permit_cnt": "Permits",
-        "licence_cnt": "Biz licences",
-        "calls_cnt": "311 calls",
+    st.caption("Component metrics (30‑day totals)")
+    # Handle legacy + current column names gracefully
+    metric_cols = {
+        "Crime/1k pop": ["crime_per_1k", "crime_rate"],
+        "Vacant code": ["vacant_code_count", "vacant_code_cnt", "vacant_rate"],
+        "Permits": ["permit_count", "permit_cnt", "permit_rate"],
+        "Licences": ["licence_count", "licence_cnt", "license_count", "licence_rate"],
+        "311 calls": ["calls_count", "calls_cnt", "calls_rate"],
     }
-    st.caption("30‑day component totals")
-    st.write(row[cols].rename(index=labels))
+    vals = {}
+    for label, candidates in metric_cols.items():
+        for c in candidates:
+            if c in row:
+                vals[label] = row[c]
+                break
+    st.write(pd.Series(vals))
 
     st.caption("Feature influence (SHAP)")
     sub = shap_long[shap_long["tract"] == clicked]
