@@ -5,3 +5,4 @@ __pycache__/
 *.parquet
 temp
 .env
+*.swp

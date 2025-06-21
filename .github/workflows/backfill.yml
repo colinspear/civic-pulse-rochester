@@ -1,23 +1,33 @@
-name: backfill-last-365-days
+name: backfill
 on:
-  workflow_dispatch:        # run manually from Actions tab
+  workflow_dispatch:
     inputs:
-      target_date:             # <-- add this block if not present
-        description: "YYYY-MM-DD (single day). Leave blank for default behaviour"
+      start_date:
+        description: "Start date (YYYY-MM-DD) of lookback window"
+        required: true
+        type: string
+      end_date:
+        description: "End date (YYYY-MM-DD) of lookback window (optional, defaults to today)"
         required: false
+        type: string
+      dataset:
+        description: "Comma-separated list of datasets to backfill (choose from 311, biz, viol, permits, crime)"
+        required: true
         type: string
 
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    env:                     # inject the same secrets the nightly jobs use
+    env:
       AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION:            ${{ secrets.AWS_REGION }}
       BUCKET:                ${{ secrets.BUCKET }}
       SOCRATA_APP_TOKEN:     ${{ secrets.SOCRATA_APP_TOKEN }}
       ATHENA_WORKGROUP_NAME: ${{ secrets.ATHENA_WORKGROUP_NAME }}
-      TARGET_DATE: ${{ inputs.target_date }}   # <-- pass to extractor
+      START_DATE: ${{ inputs.start_date }}
+      END_DATE: ${{ inputs.end_date }}
+      DATASET: ${{ inputs.dataset }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,23 +36,48 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run extractors for the last 365 days
+      - name: Run backfill
         run: |
-          for i in {15..27}; do
-            TARGET_DATE="2024-09-$(printf "%02d" $i)"
-            echo ">>> $TARGET_DATE"
-            export TARGET_DATE
-            python data_ingest/fetch_buf_biz.py
-            # python data_ingest/fetch_buf_crime.py
-            # python data_ingest/fetch_buf_permits.py
-            # python data_ingest/fetch_buf_viol.py
-            # python data_ingest/fetch_buf_311.py
-            sleep 2        # polite pause → ~30 min total extra
+          set -euo pipefail
+          if [ -z "${END_DATE:-}" ]; then
+            END_DATE=$(date +%F)
+          fi
+          if ! date -d "$START_DATE" >/dev/null 2>&1; then
+            echo "Invalid START_DATE: $START_DATE" >&2
+            exit 1
+          fi
+          if ! date -d "$END_DATE" >/dev/null 2>&1; then
+            echo "Invalid END_DATE: $END_DATE" >&2
+            exit 1
+          fi
+          start_ts=$(date -d "$START_DATE" +%s)
+          end_ts=$(date -d "$END_DATE" +%s)
+          if [ "$start_ts" -gt "$end_ts" ]; then
+            echo "START_DATE ($START_DATE) is after END_DATE ($END_DATE)" >&2
+            exit 1
+          fi
+          echo "Backfilling datasets: $DATASET from $START_DATE to $END_DATE"
+          IFS=',' read -ra DS_ARRAY <<< "$DATASET"
+          current_ts=$start_ts
+          while [ "$current_ts" -le "$end_ts" ]; do
+            TARGET_DATE=$(date -d "@$current_ts" +%F)
+            echo ">>> Processing date: $TARGET_DATE"
+            for ds in "${DS_ARRAY[@]}"; do
+              ds_trim=$(echo "$ds" | xargs)
+              echo "Running fetch_buf for $ds_trim"
+              python data_ingest/fetch_buf_${ds_trim}.py
+            done
+            current_ts=$((current_ts + 86400))
+            sleep 2
           done
 
       - name: Repair partitions
         run: |
-          for tbl in raw_buf_crime raw_buf_viol raw_buf_permits raw_buf_biz raw_buf_311; do
+          IFS=',' read -ra DS_ARRAY <<< "$DATASET"
+          for ds in "${DS_ARRAY[@]}"; do
+            ds_trim=$(echo "$ds" | xargs)
+            tbl="raw_buf_${ds_trim}"
+            echo "Repairing partition for $tbl"
             aws athena start-query-execution \
               --work-group "$ATHENA_WORKGROUP_NAME" \
               --query-string "MSCK REPAIR TABLE civic_pulse.${tbl};"
