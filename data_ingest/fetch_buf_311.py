@@ -97,8 +97,8 @@ if not rows:
 df = pd.DataFrame(rows)
 
 df["pulled_utc"] = pd.Timestamp.utcnow()
-df["city"] = df["city"].fillna("Buffalo")
-df["state"] = df["state"].fillna("New York")
+# df["city"] = df["city"].fillna("Buffalo")
+# df["state"] = df["state"].fillna("New York")
 
 # ensure all expected cols present
 for col in FIELDS:
